@@ -1,6 +1,6 @@
 # k6 Load Testing Playbook
 
-Production-ready load testing scenarios for HTTP APIs and WebSocket services.
+Usage-ready load testing scenarios for HTTP APIs and WebSocket services.
 Built from real-world experience validating systems serving 50K+ concurrent connections.
 
 ## Background
