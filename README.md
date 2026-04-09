@@ -1,6 +1,8 @@
 # k6 Load Testing Playbook
 
-Usage-ready load testing scenarios for HTTP APIs and WebSocket services.
+[![Load Tests](https://github.com/rosilesmarcos01/k6-load-testing-playbook/actions/workflows/load-tests.yml/badge.svg?branch=main)](https://github.com/rosilesmarcos01/k6-load-testing-playbook/actions/workflows/load-tests.yml)
+
+Production-ready load testing scenarios for HTTP APIs and WebSocket services.
 Built from real-world experience validating systems serving 50K+ concurrent connections.
 
 ## Background
@@ -15,6 +17,7 @@ exponential backoff, then validated with k6 before the fix shipped.
 
 | Scenario | File | Purpose |
 |----------|------|---------|
+| CI smoke | `scenarios/http-api/smoke-ci.js` | Short HTTPS run on Grafana’s public test API — proves CI + k6 wiring |
 | Ramp-up | `scenarios/http-api/ramp-up.js` | Gradual load increase — baseline capacity planning |
 | Spike | `scenarios/http-api/spike.js` | Sudden traffic surge — elasticity testing |
 | Soak | `scenarios/http-api/soak.js` | Sustained load — memory leak / degradation detection |
@@ -29,6 +32,9 @@ brew install k6
 
 # Install k6 (Linux)
 sudo apt-get install k6
+
+# Run CI smoke locally (same target as GitHub Actions by default)
+k6 run scenarios/http-api/smoke-ci.js
 
 # Run HTTP ramp-up against local server
 k6 run scenarios/http-api/ramp-up.js
@@ -57,6 +63,8 @@ k6 exits with a non-zero code if any threshold is breached — which fails the C
 | WebSocket error rate | < 1% |
 | WebSocket delivery rate | ≥ 99.9% |
 
+CI smoke (`smoke-ci.js`) uses **`ciSmokeThresholds`**: same error-rate bar, relaxed latency (internet + shared demo API), minimum throughput `> 0.5` req/s — see `lib/thresholds.js`.
+
 ## Reading k6 Output
 
 Key metrics to watch:
@@ -70,13 +78,18 @@ Key metrics to watch:
 
 ## CI/CD Integration
 
-See `.github/workflows/load-tests.yml`. The pipeline:
-1. Installs k6 on the runner
-2. Runs smoke (ramp-up) test against staging
-3. Uploads results as artifacts for review
-4. Fails the build if any SLO threshold is breached
+See `.github/workflows/load-tests.yml`. On every push and pull request to `main`:
 
-Designed to run before production deploys as a quality gate.
+1. Installs k6 on `ubuntu-latest`
+2. Runs **`scenarios/http-api/smoke-ci.js`** against **`https://test-api.k6.io`** (Grafana’s public demo API used in official k6 examples) — real TLS, real HTTP, real thresholds
+3. Writes `results/smoke-ci.json` and uploads it as a workflow artifact
+4. Fails the job if **CI smoke thresholds** in `lib/thresholds.js` (`ciSmokeThresholds`) are breached
+
+The badge at the top of this README reflects that run. This is intentionally **not** the 14‑minute ramp-up: that scenario targets *your* `/api/health` contract and belongs against staging or production-like environments you control.
+
+**Manual runs:** use **Actions → Load Tests → Run workflow** to override `base_url` (same path pattern: `/public/crocodiles/...` must exist on that host, or point smoke at another API and adjust the scenario paths).
+
+For a deploy gate on your own stack, reuse the same workflow pattern with secrets (e.g. `BASE_URL` / `WS_URL`) and a runner that can reach your network, or call `k6 run` from your existing pipeline with `scenarios/http-api/ramp-up.js` and your SLOs.
 
 ## Project Structure Decisions
 
